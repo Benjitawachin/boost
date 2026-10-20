@@ -1,0 +1,49 @@
+# Copiá este archivo a config.yaml y ajustalo.
+# Las URLs y los selectores CSS dependen de cómo esté armada la web de Soy Socio en este momento:
+# verificalos con las DevTools del navegador (F12) antes de usar el monitor (ver README).
+
+browser:
+  profile_dir: browser_profile   # acá se guardan las cookies de sesión entre ejecuciones
+  headless: false                # tiene que ser false para que la ventana te quede abierta al detectar lugar
+
+login:
+  url: https://soysocio.bocajuniors.com.ar/
+  # Elemento que solo aparece con la sesión iniciada (ej: menú "Mi cuenta", nombre del socio)
+  logged_in_selector: "CAMBIAR: selector visible solo logueado"
+  # Selectores del formulario de login (opcionales; si faltan, iniciás sesión a mano)
+  username_selector: "input[name='dni']"
+  password_selector: "input[type='password']"
+  submit_selector: "button[type='submit']"
+  manual_timeout_s: 300          # tiempo para completar el login a mano (o resolver un captcha)
+
+check:
+  mode: page                     # "page" (lee la página del partido) o "api" (lee un JSON, más liviano)
+  match_url: "CAMBIAR: URL de la página del partido"
+
+  # --- modo page ---
+  ready_selector: ""             # opcional: elemento que indica que la página terminó de cargar
+  available_selector: "CAMBIAR: selector de un sector/ubicación con lugar disponible"
+  session_check_selector: ""     # opcional: si no aparece en la página del partido, se re-loguea
+
+  # --- modo api (copiá la URL del pedido XHR que ves en la pestaña Network) ---
+  api_url: ""
+  items_path: "sectores[*]"      # dónde está la lista de sectores dentro del JSON
+  count_field: "disponibles"     # campo numérico con los lugares libres
+  label_field: "nombre"          # campo con el nombre del sector
+  min_value: 1
+
+  # Filtrar por ubicación: solo avisa si el texto/nombre del sector contiene alguna de estas palabras.
+  # Vacío = cualquier sector.
+  include_text: []
+  # Textos que indican captcha o bloqueo: el monitor se pausa y te avisa (no intenta saltearlo)
+  block_text: ["captcha", "acceso denegado", "too many requests"]
+
+poll:
+  min_delay_s: 5                 # nunca menos de 5 s (se fuerza ese mínimo)
+  max_delay_s: 7
+  max_backoff_s: 300             # espera máxima ante errores repetidos del servidor
+  blocked_pause_s: 120           # pausa al detectar captcha/bloqueo
+  page_timeout_s: 20
+
+alert:
+  sound_repeats: 5
