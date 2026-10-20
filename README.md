@@ -24,6 +24,15 @@ Cuando aparece una ubicación disponible:
 
 ## 2. Instalación
 
+### Fácil (doble clic)
+
+- **Windows**: doble clic en `instalar.bat` (una sola vez) y después en `iniciar.bat` cada vez que quieras usar la app.
+- **Mac / Linux**: en una terminal dentro de la carpeta, `bash instalar.sh` (una sola vez) y después `bash iniciar.sh`.
+
+Si no tenés Python, el instalador te abre la página de descarga. La app queda en `http://localhost:8501`.
+
+### Manual
+
 ```bash
 git clone <url-de-este-repo> boost
 cd boost
