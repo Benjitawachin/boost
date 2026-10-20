@@ -116,8 +116,16 @@ El modo API usa las mismas cookies del navegador, así que respeta tu sesión.
 
 ### 4.3 Ubicación
 
-En **"Ubicaciones que te interesan"** poné palabras separadas por coma (por ejemplo `Platea, Popular Sur`). El monitor
-solo avisa si el texto o el nombre del sector disponible contiene alguna. Si lo dejás vacío, avisa por cualquier sector.
+En **"Sectores que te interesan, en orden de prioridad"** marcá los sectores que querés (Popular, 1ra/2da/3ra bandeja,
+K, Torres, Plateas preferenciales, Palcos) **en el orden en que los preferís**. Si hay lugar en varios a la vez, la
+alerta muestra primero el de mayor prioridad. Si no marcás ninguno, avisa por cualquier sector.
+
+En **"Otros sectores"** podés sumar sectores puntuales del mapa (por ejemplo `2° Sur, LPD, Palcos VIP N`); quedan con
+prioridad después de los marcados.
+
+Cada sector se compara por palabra completa, sin importar mayúsculas: "K" coincide con "Sector K" pero no con
+"Kiosco". En `config.yaml` cada entrada admite sinónimos separados por `|` y exclusiones con `!`; por ejemplo
+`k|!sin k` evita que "3ra bandeja (SIN K)" cuente como K.
 
 ## 5. Uso
 

@@ -58,6 +58,29 @@ def resolve_path(data: Any, path: str) -> list[Any]:
     return nodes
 
 
+def location_priority(label: str, include_text: list[str]) -> int | None:
+    """Posición (0 = máxima prioridad) de la primera ubicación que coincide; None si ninguna.
+
+    Cada entrada admite sinónimos separados por '|' (comparados por palabra completa) y
+    exclusiones con '!': 'k|!sin k' coincide con "Sector K" pero no con "3ra bandeja (SIN K)".
+    """
+    if not include_text:
+        return 0
+    for index, entry in enumerate(include_text):
+        terms = [t.strip() for t in entry.split("|") if t.strip()]
+        excluded = [t[1:].strip() for t in terms if t.startswith("!")]
+        wanted = [t for t in terms if not t.startswith("!")]
+        if any(_has_words(label, t) for t in excluded):
+            continue
+        if any(_has_words(label, t) for t in wanted):
+            return index
+    return None
+
+
+def _has_words(text: str, words: str) -> bool:
+    return re.search(rf"(?<!\w){re.escape(words)}(?!\w)", text, re.IGNORECASE) is not None
+
+
 def _to_number(value: Any) -> float:
     if isinstance(value, bool):
         return float(value)
@@ -83,11 +106,9 @@ class AvailabilityChecker:
         except PlaywrightError as exc:
             raise TransientError(f"Error de navegador/red: {exc}") from exc
 
-    def _matches_location(self, label: str) -> bool:
-        if not self._cfg.include_text:
-            return True
-        label = label.lower()
-        return any(word.lower() in label for word in self._cfg.include_text)
+    def _rank(self, labels: list[str]) -> list[str]:
+        ranked = [(location_priority(label, self._cfg.include_text), label) for label in labels]
+        return [label for priority, label in sorted((r for r in ranked if r[0] is not None), key=lambda r: r[0])]
 
     def _looks_blocked(self, text: str) -> bool:
         text = text.lower()
@@ -117,7 +138,7 @@ class AvailabilityChecker:
             return CheckResult("logged_out")
 
         texts = await page.locator(self._cfg.available_selector).all_inner_texts()
-        found = [" ".join(t.split()) for t in texts if self._matches_location(t)]
+        found = self._rank([" ".join(t.split()) for t in texts])
         return CheckResult("available" if found else "unavailable", found)
 
     async def _check_api(self) -> CheckResult:
@@ -143,12 +164,13 @@ class AvailabilityChecker:
                 return CheckResult("blocked")
             raise TransientError("La respuesta no es JSON (¿sesión vencida o cambió la API?)")
 
-        found: list[str] = []
+        candidates: list[str] = []
         for item in resolve_path(data, self._cfg.items_path):
             values = resolve_path(item, self._cfg.count_field)
             count = _to_number(values[0]) if values else 0.0
             labels = resolve_path(item, self._cfg.label_field) if self._cfg.label_field else []
             label = str(labels[0]) if labels else "Sector"
-            if count >= self._cfg.min_value and self._matches_location(label):
-                found.append(f"{label}: {count:g} disponibles")
+            if count >= self._cfg.min_value:
+                candidates.append(f"{label}: {count:g} disponibles")
+        found = self._rank(candidates)
         return CheckResult("available" if found else "unavailable", found)

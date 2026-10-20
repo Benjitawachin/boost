@@ -19,6 +19,17 @@ LOG_FILE = LOG_DIR / "monitor.log"
 PROCESS_LOG = LOG_DIR / "process.log"
 PID_FILE = LOG_DIR / "monitor.pid"
 
+SECTORS = {
+    "Popular (Activo/Adherente)": "popular|s sur|2° sur|3° sur|s norte|2° norte|3° norte",
+    "1ra bandeja (Platea baja)": "1ra bandeja|1° bandeja|primera bandeja|platea baja",
+    "2da bandeja (Platea media)": "2da bandeja|2° bandeja|segunda bandeja|platea media",
+    "3ra bandeja sin K (Platea alta)": "3ra bandeja|3° bandeja|tercera bandeja|platea alta",
+    "K": "k|!sin k",
+    "Torres (Terrazas)": "torre|torres|terraza|terrazas|ts|tn",
+    "Plateas preferenciales": "platea preferencial|plateas preferenciales|preferencial|preferenciales",
+    "Palcos": "palco|palcos",
+}
+
 ENV_KEYS = ["SOYSOCIO_DNI", "SOYSOCIO_PASSWORD", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]
 
 CSS = """
@@ -223,10 +234,23 @@ with tab_partido:
         "URL de la página del partido", placeholder_free(check.get("match_url")),
         help="Abrí el partido en Soy Socio y copiá la URL de la barra de direcciones.",
     )
-    check["include_text"] = split_list(st.text_input(
-        "Ubicaciones que te interesan (separadas por coma)", ", ".join(check.get("include_text") or []),
-        help="Ej: Platea, Popular Sur. Vacío = cualquier sector.",
+    saved_locations = check.get("include_text") or []
+    keyword_to_sector = {v: k for k, v in SECTORS.items()}
+    chosen = st.multiselect(
+        "Sectores que te interesan, en orden de prioridad",
+        list(SECTORS),
+        default=[keyword_to_sector[e] for e in saved_locations if e in keyword_to_sector],
+        placeholder="Elegí uno o más sectores (vacío = cualquiera)",
+        help="El primero que marques es el más importante: si hay lugar en varios, la alerta lo muestra primero.",
+    )
+    extra = split_list(st.text_input(
+        "Otros sectores (opcional, separados por coma)",
+        ", ".join(e for e in saved_locations if e not in keyword_to_sector),
+        help="Por ejemplo un sector puntual del mapa: 2° Sur, LPD, Palcos VIP N.",
     ))
+    check["include_text"] = [SECTORS[c] for c in chosen] + extra
+    if chosen or extra:
+        st.caption("Prioridad: " + " → ".join(f"{i}° {name}" for i, name in enumerate(chosen + extra, 1)))
     mode_label = st.radio(
         "Cómo detectar disponibilidad", ["Leyendo la página", "Leyendo la API (JSON, más liviano)"],
         index=1 if check.get("mode") == "api" else 0, horizontal=True,
