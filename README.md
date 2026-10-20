@@ -142,6 +142,19 @@ Cada sector se compara por palabra completa, sin importar mayúsculas: "K" coinc
 > El botón del Telegram abre el partido en el navegador del teléfono, que no tiene tu sesión de la computadora. La forma
 > más rápida es completar la compra en la ventana que ya quedó abierta en la PC.
 
+### Usar desde el celular
+
+La computadora hace el trabajo y el celular funciona como control remoto:
+
+1. En la PC, pestaña **Celular**: creá una **contraseña del panel** (mínimo 6 caracteres, distinta de la de Soy
+   Socio) y tocá **Guardar configuración**. Aparece un **código QR**.
+2. Con el celular **en el mismo Wi-Fi**, escaneá el QR con la cámara y entrá con esa contraseña.
+3. Para tenerlo como app: en iPhone (Safari) **Compartir → Agregar a inicio**; en Android (Chrome) **⋮ → Agregar a
+   pantalla principal**.
+
+La PC tiene que quedar prendida y con `iniciar` abierto. La primera vez, Windows puede preguntar si permite el acceso
+a Python: elegí **Redes privadas → Permitir acceso**. Sin contraseña del panel, ningún otro dispositivo puede entrar.
+
 ### Desde la terminal (sin panel)
 
 ```bash

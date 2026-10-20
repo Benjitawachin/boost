@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hmac
+import socket
 import subprocess
 import sys
 from pathlib import Path
 
 import psutil
+import segno
 import streamlit as st
 import streamlit.components.v1 as components
 import yaml
@@ -30,8 +33,6 @@ SECTORS = {
     "Palcos": "palco|palcos",
 }
 
-ENV_KEYS = ["SOYSOCIO_DNI", "SOYSOCIO_PASSWORD", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]
-
 CSS = """
 <style>
 :root { --azul: #0B2D6B; --azul-osc: #061A40; --oro: #F6B40E; }
@@ -51,7 +52,15 @@ CSS = """
 .estado.alerta { background: var(--oro); color: var(--azul-osc); border: 1px solid var(--oro);
                  animation: latido 1s ease-in-out infinite; }
 @keyframes latido { 50% { transform: scale(1.06); } }
-section[data-testid="stSidebar"] { background: var(--azul); border-right: 4px solid var(--oro); }
+@media (max-width: 640px) {
+  .block-container { padding: 2.6rem .75rem 2rem; }
+  .hero { border-radius: 14px; margin-bottom: 1rem; }
+  .hero h1 { font-size: 1.55rem; }
+  .hero .franja-azul { padding: 1rem 1.1rem .7rem; }
+  .hero .franja-oro { padding: .45rem 1.1rem; letter-spacing: .12em; font-size: .7rem; }
+  .hero .franja-azul.abajo { padding: .6rem 1.1rem .9rem; font-size: .85rem; }
+  .stTabs [data-baseweb="tab-list"] { overflow-x: auto; }
+}
 .stButton > button { font-weight: 700; border-radius: 10px; }
 .stTabs [aria-selected="true"] { color: var(--oro) !important; }
 pre { border-left: 3px solid var(--oro); }
@@ -160,6 +169,37 @@ def missing_fields(cfg: dict) -> list[str]:
     return missing
 
 
+def lan_url() -> str | None:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("10.255.255.255", 1))
+            ip = sock.getsockname()[0]
+    except OSError:
+        return None
+    return f"http://{ip}:{st.get_option('server.port')}"
+
+
+def require_access(env: dict[str, str]) -> bool:
+    """La PC entra directo; cualquier otro dispositivo necesita la contraseña del panel."""
+    if st.context.ip_address is None or st.session_state.get("autorizado"):
+        return True
+    panel_password = env.get("PANEL_PASSWORD", "")
+    if not panel_password:
+        st.error(
+            "Para entrar desde el celular primero creá una contraseña del panel "
+            "en la computadora (pestaña Celular)."
+        )
+        return False
+    with st.form("acceso"):
+        attempt = st.text_input("Contraseña del panel", type="password")
+        if st.form_submit_button("Entrar", type="primary", use_container_width=True):
+            if hmac.compare_digest(attempt.encode(), panel_password.encode()):
+                st.session_state["autorizado"] = True
+                st.rerun()
+            st.error("Contraseña incorrecta.")
+    return False
+
+
 st.set_page_config(page_title="Monitor Xeneize", page_icon="⚽", layout="wide")
 st.markdown(CSS, unsafe_allow_html=True)
 # Streamlit declara la página en inglés y Chrome la "traduce" al español deformando los textos.
@@ -169,52 +209,63 @@ components.html(
     height=0,
 )
 st.markdown(HERO, unsafe_allow_html=True)
+
+env = {k: v or "" for k, v in dotenv_values(ENV).items()} if ENV.exists() else {}
+if not require_access(env):
+    st.stop()
+on_pc = st.context.ip_address is None
+
 if flash := st.session_state.pop("flash", None):
     st.success(flash)
 
 cfg = load_config()
-env = {k: v or "" for k, v in dotenv_values(ENV).items()} if ENV.exists() else {}
 browser, login, check = cfg.setdefault("browser", {}), cfg.setdefault("login", {}), cfg.setdefault("check", {})
 poll, alert = cfg.setdefault("poll", {}), cfg.setdefault("alert", {})
 proc = monitor_process()
 missing = missing_fields(cfg) if CONFIG.exists() else ["Guardar la configuración"]
 
-with st.sidebar:
-    submitted = st.button("Guardar configuración", type="primary", use_container_width=True)
-    st.divider()
-    st.markdown("### Control")
 
-    @st.fragment(run_every=2)
-    def status_badge() -> None:
-        running = monitor_process()
-        run_lines = current_run_lines(read_log_tail(400))
-        if running and any("LUGAR DISPONIBLE" in line for line in run_lines):
-            st.markdown('<span class="estado alerta">¡LUGAR DISPONIBLE!</span>', unsafe_allow_html=True)
-        elif running:
-            st.markdown('<span class="estado on">● Monitoreando</span>', unsafe_allow_html=True)
-        else:
-            st.markdown('<span class="estado off">○ Detenido</span>', unsafe_allow_html=True)
-        consultas = sum("Consulta #" in line for line in run_lines) if running else 0
-        st.caption(f"Consultas en esta corrida: {consultas}")
-
-    status_badge()
-
-    if proc:
-        if st.button("Detener monitor", use_container_width=True):
-            stop_monitor(proc)
-            st.rerun()
+@st.fragment(run_every=2)
+def status_badge() -> None:
+    running = monitor_process()
+    run_lines = current_run_lines(read_log_tail(400))
+    consultas = sum("Consulta #" in line for line in run_lines) if running else 0
+    if running and any("LUGAR DISPONIBLE" in line for line in run_lines):
+        badge = '<span class="estado alerta">¡LUGAR DISPONIBLE!</span>'
+    elif running:
+        badge = f'<span class="estado on">● Monitoreando · {consultas} consultas</span>'
     else:
-        if st.button("Iniciar monitor", type="primary", use_container_width=True, disabled=bool(missing)):
+        badge = '<span class="estado off">○ Detenido</span>'
+    st.markdown(badge, unsafe_allow_html=True)
+
+
+with st.container(border=True):
+    status_badge()
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        if proc:
+            if st.button("Detener monitor", use_container_width=True):
+                stop_monitor(proc)
+                st.rerun()
+        elif st.button("Iniciar monitor", type="primary", use_container_width=True, disabled=bool(missing)):
             start_monitor()
             st.rerun()
-        if missing:
-            st.markdown("**Para poder iniciar falta:**\n" + "\n".join(f"- {m}" for m in missing))
+    with col2:
+        submitted = st.button("Guardar configuración", type="primary", use_container_width=True)
+    with col3:
+        login_clicked = st.button(
+            "Iniciar sesión en Soy Socio", use_container_width=True, disabled=bool(proc) or bool(missing),
+            help="Abre el navegador en la computadora para iniciar sesión y guardar las cookies.",
+        )
+    with col4:
+        test_clicked = st.button("Probar alerta", use_container_width=True, help="Suena en la computadora y manda un Telegram.")
 
-    st.divider()
-    if st.button("Iniciar sesión y guardar cookies", use_container_width=True, disabled=bool(proc) or bool(missing)):
+    if missing and not proc:
+        st.markdown("**Para poder iniciar falta:**\n" + "\n".join(f"- {m}" for m in missing))
+    if login_clicked:
         spawn("--login-only")
-        st.info("Se abrió el navegador. Si no se loguea solo, completá el login en esa ventana.")
-    if st.button("Probar alerta (sonido + Telegram)", use_container_width=True):
+        st.info("Se abrió el navegador en la computadora. Si no se loguea solo, completá el login en esa ventana.")
+    if test_clicked:
         result = subprocess.run(
             [sys.executable, "-m", "monitor", "--config", str(CONFIG), "--test-notify"],
             cwd=ROOT, capture_output=True, text=True, timeout=60,
@@ -225,8 +276,8 @@ with st.sidebar:
             errors = [line.split(": ", 1)[-1] for line in result.stdout.splitlines() if "[ERROR]" in line]
             st.error("\n\n".join(errors) or (result.stdout + result.stderr)[-800:])
 
-tab_partido, tab_cuenta, tab_avanzado, tab_logs = st.tabs(
-    ["Partido y ubicación", "Cuenta y Telegram", "Avanzado", "Logs en vivo"]
+tab_partido, tab_cuenta, tab_celular, tab_avanzado, tab_logs = st.tabs(
+    ["Partido y ubicación", "Cuenta y Telegram", "Celular", "Avanzado", "Logs en vivo"]
 )
 
 with tab_partido:
@@ -294,6 +345,44 @@ with tab_cuenta:
     login["password_selector"] = col2.text_input("Selector campo contraseña", login.get("password_selector") or "")
     login["submit_selector"] = col3.text_input("Selector botón ingresar", login.get("submit_selector") or "")
 
+with tab_celular:
+    panel_password = env.get("PANEL_PASSWORD", "")
+    if not on_pc:
+        st.markdown("Ya estás usando el panel desde otro dispositivo. La contraseña se cambia desde la computadora.")
+    else:
+        st.markdown(
+            "Manejá el monitor desde el celular. La computadora tiene que quedar **prendida, con `iniciar` abierto**, "
+            "y el celular **conectado al mismo Wi-Fi**."
+        )
+        new_password = st.text_input(
+            "Contraseña del panel (para entrar desde el celular)", panel_password, type="password",
+            help="Mínimo 6 caracteres. No uses la misma contraseña de Soy Socio.",
+        )
+        if new_password and len(new_password) < 6:
+            st.warning("Usá al menos 6 caracteres; esta contraseña no se va a guardar.")
+        else:
+            panel_password = new_password
+        url = lan_url()
+        if not panel_password:
+            st.info("Creá una contraseña y tocá **Guardar configuración**: después aparece acá el código QR.")
+        elif url:
+            col1, col2 = st.columns([1, 2])
+            col1.markdown(
+                f'<img alt="Código QR del panel" width="180" style="border-radius:12px" '
+                f'src="{segno.make(url, error="m").svg_data_uri(scale=6, border=2)}">',
+                unsafe_allow_html=True,
+            )
+            col2.markdown(
+                f"1. Abrí la **cámara** del celular y apuntá al código, o escribí **{url}** en el navegador.\n"
+                "2. Entrá con la contraseña del panel.\n"
+                "3. En iPhone (Safari): **Compartir → Agregar a inicio**. En Android (Chrome): **⋮ → Agregar a "
+                "pantalla principal**. Te queda un ícono como si fuera una app.\n\n"
+                "La primera vez Windows puede preguntar si permitís el acceso a Python: elegí **Redes privadas** y "
+                "**Permitir acceso**."
+            )
+        else:
+            st.warning("No se encontró la dirección de esta computadora en la red. ¿Está conectada al Wi-Fi?")
+
 with tab_avanzado:
     col1, col2, col3 = st.columns(3)
     poll["min_delay_s"] = col1.number_input("Espera mínima (s)", min_value=5.0, value=max(5.0, float(poll.get("min_delay_s", 5))), step=0.5)
@@ -316,6 +405,7 @@ if submitted:
     save_env({
         "SOYSOCIO_DNI": dni, "SOYSOCIO_PASSWORD": password,
         "TELEGRAM_BOT_TOKEN": tg_token, "TELEGRAM_CHAT_ID": tg_chat,
+        "PANEL_PASSWORD": panel_password,
     })
     st.session_state["flash"] = "Configuración guardada." + (" Reiniciá el monitor para aplicarla." if proc else "")
     st.rerun()
