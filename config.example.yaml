@@ -7,9 +7,10 @@ browser:
   headless: false                # tiene que ser false para que la ventana te quede abierta al detectar lugar
 
 login:
-  url: https://soysocio.bocajuniors.com.ar/
+  url: https://bocasocios.bocajuniors.com.ar/home
   # Elemento que solo aparece con la sesión iniciada (ej: menú "Mi cuenta", nombre del socio)
-  logged_in_selector: "CAMBIAR: selector visible solo logueado"
+  # Admite selectores CSS o de texto de Playwright: "text=Cerrar sesión" busca ese texto en la página
+  logged_in_selector: "text=Cerrar sesión"
   # Selectores del formulario de login (opcionales; si faltan, iniciás sesión a mano)
   username_selector: "input[name='dni']"
   password_selector: "input[type='password']"
@@ -18,7 +19,7 @@ login:
 
 check:
   mode: page                     # "page" (lee la página del partido) o "api" (lee un JSON, más liviano)
-  match_url: "CAMBIAR: URL de la página del partido"
+  match_url: https://bocasocios.bocajuniors.com.ar/matches
 
   # --- modo page ---
   ready_selector: ""             # opcional: elemento que indica que la página terminó de cargar
