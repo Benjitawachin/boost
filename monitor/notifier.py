@@ -61,7 +61,7 @@ class Notifier:
         if not self.telegram_enabled:
             return False
         payload: dict = {"chat_id": self._chat_id, "text": text, "disable_web_page_preview": True}
-        if button_url:
+        if button_url and button_url.startswith(("http://", "https://")):
             payload["reply_markup"] = {"inline_keyboard": [[{"text": "Abrir partido", "url": button_url}]]}
         url = f"https://api.telegram.org/bot{self._token}/sendMessage"
         async with httpx.AsyncClient(timeout=10) as client:
@@ -72,14 +72,28 @@ class Notifier:
                         return True
                     log.warning("Telegram respondió %s: %s", response.status_code, response.text[:200])
                     if response.status_code < 500 and response.status_code != 429:
+                        log.error("%s", _telegram_hint(response.status_code, response.text))
                         return False
                 except httpx.HTTPError as exc:
                     log.warning("Error enviando a Telegram (intento %d): %s", attempt, exc)
                 await asyncio.sleep(2**attempt)
+        log.error("No se pudo conectar con Telegram. Revisá tu conexión a internet y volvé a probar.")
         return False
 
-    async def send_availability_alert(self, match_url: str, details: list[str]) -> None:
+    async def send_availability_alert(self, match_url: str, details: list[str]) -> bool:
         lines = ["¡HAY LUGAR DISPONIBLE!", ""]
         lines += [f"- {d}" for d in details[:15]] or ["- (sin detalle)"]
         lines += ["", "La ventana del navegador ya está abierta con tu sesión en la página del partido.", match_url]
-        await asyncio.gather(self.play_sound(), self.send_text("\n".join(lines), button_url=match_url))
+        _, sent = await asyncio.gather(self.play_sound(), self.send_text("\n".join(lines).strip(), button_url=match_url))
+        return sent
+
+
+def _telegram_hint(status: int, body: str) -> str:
+    body = body.lower()
+    if status in (401, 404):
+        return "Telegram: el token del bot es incorrecto. Copialo de nuevo del mensaje de @BotFather."
+    if "chat not found" in body:
+        return "Telegram: chat_id incorrecto, o todavía no le mandaste un mensaje a tu bot (abrilo y tocá Iniciar)."
+    if "blocked" in body:
+        return "Telegram: bloqueaste al bot. Abrilo en Telegram y desbloquealo."
+    return f"Telegram rechazó el mensaje (código {status})."

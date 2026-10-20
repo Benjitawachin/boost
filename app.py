@@ -132,6 +132,23 @@ def placeholder_free(value) -> str:
     return "" if value.upper().startswith("CAMBIAR") else value
 
 
+def missing_fields(cfg: dict) -> list[str]:
+    login, check = cfg.get("login", {}), cfg.get("check", {})
+    missing = []
+    if not placeholder_free(check.get("match_url")):
+        missing.append("URL del partido (pestaña Partido y ubicación)")
+    if not placeholder_free(login.get("url")):
+        missing.append("URL de login (pestaña Cuenta y Telegram)")
+    if not placeholder_free(login.get("logged_in_selector")):
+        missing.append("Selector visible solo con sesión iniciada (pestaña Cuenta y Telegram)")
+    if check.get("mode") == "api":
+        if not (check.get("api_url") and check.get("items_path") and check.get("count_field")):
+            missing.append("Datos del modo API (pestaña Partido y ubicación)")
+    elif not placeholder_free(check.get("available_selector")):
+        missing.append("Selector de sector disponible (pestaña Partido y ubicación)")
+    return missing
+
+
 st.set_page_config(page_title="Monitor Xeneize", page_icon="⚽", layout="wide")
 st.markdown(CSS, unsafe_allow_html=True)
 # Streamlit declara la página en inglés y Chrome la "traduce" al español deformando los textos.
@@ -149,6 +166,7 @@ env = {k: v or "" for k, v in dotenv_values(ENV).items()} if ENV.exists() else {
 browser, login, check = cfg.setdefault("browser", {}), cfg.setdefault("login", {}), cfg.setdefault("check", {})
 poll, alert = cfg.setdefault("poll", {}), cfg.setdefault("alert", {})
 proc = monitor_process()
+missing = missing_fields(cfg) if CONFIG.exists() else ["Guardar la configuración"]
 
 with st.sidebar:
     submitted = st.button("Guardar configuración", type="primary", use_container_width=True)
@@ -175,25 +193,26 @@ with st.sidebar:
             stop_monitor(proc)
             st.rerun()
     else:
-        if st.button("Iniciar monitor", type="primary", use_container_width=True, disabled=not CONFIG.exists()):
+        if st.button("Iniciar monitor", type="primary", use_container_width=True, disabled=bool(missing)):
             start_monitor()
             st.rerun()
-        if not CONFIG.exists():
-            st.caption("Guardá la configuración primero.")
+        if missing:
+            st.markdown("**Para poder iniciar falta:**\n" + "\n".join(f"- {m}" for m in missing))
 
     st.divider()
-    if st.button("Iniciar sesión y guardar cookies", use_container_width=True, disabled=bool(proc) or not CONFIG.exists()):
+    if st.button("Iniciar sesión y guardar cookies", use_container_width=True, disabled=bool(proc) or bool(missing)):
         spawn("--login-only")
         st.info("Se abrió el navegador. Si no se loguea solo, completá el login en esa ventana.")
-    if st.button("Probar alerta (sonido + Telegram)", use_container_width=True, disabled=not CONFIG.exists()):
+    if st.button("Probar alerta (sonido + Telegram)", use_container_width=True):
         result = subprocess.run(
             [sys.executable, "-m", "monitor", "--config", str(CONFIG), "--test-notify"],
             cwd=ROOT, capture_output=True, text=True, timeout=60,
         )
         if result.returncode == 0:
-            st.success("Alerta de prueba enviada")
+            st.success("¡Listo! Sonó la alarma y te llegó el mensaje a Telegram.")
         else:
-            st.error((result.stdout + result.stderr)[-800:])
+            errors = [line.split(": ", 1)[-1] for line in result.stdout.splitlines() if "[ERROR]" in line]
+            st.error("\n\n".join(errors) or (result.stdout + result.stderr)[-800:])
 
 tab_partido, tab_cuenta, tab_avanzado, tab_logs = st.tabs(
     ["Partido y ubicación", "Cuenta y Telegram", "Avanzado", "Logs en vivo"]
@@ -268,28 +287,14 @@ with tab_avanzado:
     browser["headless"] = False
 
 if submitted:
-    errors = []
-    if not check["match_url"]:
-        errors.append("Falta la URL del partido.")
-    if not login["url"] or not login["logged_in_selector"]:
-        errors.append("Faltan la URL de login o el selector de sesión iniciada.")
-    if check["mode"] == "page" and not check["available_selector"]:
-        errors.append("Falta el selector de sector disponible.")
-    if check["mode"] == "api" and not (check["api_url"] and check["items_path"] and check["count_field"]):
-        errors.append("Faltan datos del modo API.")
-    if poll["max_delay_s"] < poll["min_delay_s"]:
-        errors.append("La espera máxima no puede ser menor que la mínima.")
-    if errors:
-        for error in errors:
-            st.error(error)
-    else:
-        save_config(cfg)
-        save_env({
-            "SOYSOCIO_DNI": dni, "SOYSOCIO_PASSWORD": password,
-            "TELEGRAM_BOT_TOKEN": tg_token, "TELEGRAM_CHAT_ID": tg_chat,
-        })
-        st.session_state["flash"] = "Configuración guardada." + (" Reiniciá el monitor para aplicarla." if proc else "")
-        st.rerun()
+    poll["max_delay_s"] = max(poll["max_delay_s"], poll["min_delay_s"])
+    save_config(cfg)
+    save_env({
+        "SOYSOCIO_DNI": dni, "SOYSOCIO_PASSWORD": password,
+        "TELEGRAM_BOT_TOKEN": tg_token, "TELEGRAM_CHAT_ID": tg_chat,
+    })
+    st.session_state["flash"] = "Configuración guardada." + (" Reiniciá el monitor para aplicarla." if proc else "")
+    st.rerun()
 
 with tab_logs:
     @st.fragment(run_every=2)

@@ -3,11 +3,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import random
 import signal
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 from .auth import BrowserSession, LoginError
 from .config import ConfigError, Settings, load_settings
@@ -103,10 +106,17 @@ async def run(settings: Settings, login_only: bool) -> int:
         await session.close()
 
 
-async def test_notify(settings: Settings) -> int:
-    notifier = Notifier(settings.secrets.telegram_token, settings.secrets.telegram_chat_id, settings.sound_repeats)
-    await notifier.send_availability_alert(settings.check.match_url, ["Prueba de notificación"])
-    log.info("Prueba enviada (Telegram: %s)", "sí" if notifier.telegram_enabled else "no configurado")
+async def test_notify(env_path: Path) -> int:
+    load_dotenv(env_path)
+    notifier = Notifier(os.getenv("TELEGRAM_BOT_TOKEN", "").strip(), os.getenv("TELEGRAM_CHAT_ID", "").strip(), 3)
+    sent = await notifier.send_availability_alert("", ["Prueba de notificación: si te llegó este mensaje, Telegram funciona."])
+    if not notifier.telegram_enabled:
+        log.error("Sonó la alarma, pero Telegram no está configurado: cargá el token y el chat_id y guardá.")
+        return 1
+    if not sent:
+        log.error("Sonó la alarma, pero no se pudo enviar el mensaje de Telegram (ver el motivo arriba).")
+        return 1
+    log.info("Prueba enviada: sonó la alarma y salió el mensaje de Telegram.")
     return 0
 
 
@@ -129,6 +139,8 @@ def main() -> None:
 
     config_path = args.config.resolve()
     setup_logging(config_path.parent / "logs", args.verbose)
+    if args.test_notify:
+        sys.exit(asyncio.run(test_notify(config_path.parent / ".env")))
     try:
         settings = load_settings(config_path)
     except ConfigError as exc:
@@ -136,8 +148,7 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        coro = test_notify(settings) if args.test_notify else run(settings, args.login_only)
-        sys.exit(asyncio.run(with_sigterm(coro)))
+        sys.exit(asyncio.run(with_sigterm(run(settings, args.login_only))))
     except (KeyboardInterrupt, asyncio.CancelledError):
         log.info("Monitor detenido")
         sys.exit(130)
