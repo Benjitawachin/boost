@@ -6,6 +6,7 @@ from pathlib import Path
 
 import psutil
 import streamlit as st
+import streamlit.components.v1 as components
 import yaml
 from dotenv import dotenv_values, set_key
 
@@ -133,6 +134,12 @@ def placeholder_free(value) -> str:
 
 st.set_page_config(page_title="Monitor Xeneize", page_icon="⚽", layout="wide")
 st.markdown(CSS, unsafe_allow_html=True)
+# Streamlit declara la página en inglés y Chrome la "traduce" al español deformando los textos.
+components.html(
+    "<script>const d = window.parent.document.documentElement;"
+    "d.lang = 'es'; d.setAttribute('translate', 'no'); d.classList.add('notranslate');</script>",
+    height=0,
+)
 st.markdown(HERO, unsafe_allow_html=True)
 if flash := st.session_state.pop("flash", None):
     st.success(flash)
