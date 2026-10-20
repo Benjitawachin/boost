@@ -109,7 +109,9 @@ async def run(settings: Settings, login_only: bool) -> int:
 async def test_notify(env_path: Path) -> int:
     load_dotenv(env_path)
     notifier = Notifier(os.getenv("TELEGRAM_BOT_TOKEN", "").strip(), os.getenv("TELEGRAM_CHAT_ID", "").strip(), 3)
-    sent = await notifier.send_availability_alert("", ["Prueba de notificación: si te llegó este mensaje, Telegram funciona."])
+    sound = notifier.play_sound()
+    text = notifier.send_text("PRUEBA - Monitor Xeneize\n\nSi te llegó este mensaje, Telegram funciona. Esto NO es una alerta real.")
+    _, sent = await asyncio.gather(sound, text)
     if not notifier.telegram_enabled:
         log.error("Sonó la alarma, pero Telegram no está configurado: cargá el token y el chat_id y guardá.")
         return 1
