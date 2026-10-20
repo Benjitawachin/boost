@@ -35,7 +35,7 @@ def setup_logging(log_dir: Path, verbose: bool) -> None:
 
 
 async def wait_until_closed() -> None:
-    log.info("Búsqueda finalizada. La ventana queda abierta para que confirmes; Ctrl+C o Detener para cerrarla.")
+    log.info("La página del partido quedó abierta en la computadora: elegí la ubicación y confirmá.")
     await asyncio.Event().wait()
 
 
@@ -82,7 +82,7 @@ async def monitor_loop(settings: Settings, session: BrowserSession, notifier: No
 
         blocked_notified = False
         delay = random.uniform(poll.min_delay_s, poll.max_delay_s)
-        log.info("Consulta #%d: sin lugares. Próxima en %.1f s", checks, delay)
+        log.info("Consulta #%d: todavía no hay lugar. Próxima en %.0f s", checks, delay)
         await asyncio.sleep(delay)
 
 
@@ -95,7 +95,7 @@ async def run(settings: Settings, login_only: bool) -> int:
         if login_only:
             log.info("Sesión guardada en el perfil. Ya podés ejecutar el monitor.")
             return 0
-        await notifier.send_text("Monitor de Soy Socio iniciado.")
+        await notifier.send_text("Monitor Xeneize: empecé a vigilar la venta. Te aviso apenas haya lugar.")
         await monitor_loop(settings, session, notifier)
         return 0
     except LoginError as exc:
@@ -109,9 +109,7 @@ async def run(settings: Settings, login_only: bool) -> int:
 async def test_notify(env_path: Path) -> int:
     load_dotenv(env_path)
     notifier = Notifier(os.getenv("TELEGRAM_BOT_TOKEN", "").strip(), os.getenv("TELEGRAM_CHAT_ID", "").strip(), 3)
-    sound = notifier.play_sound()
-    text = notifier.send_text("PRUEBA - Monitor Xeneize\n\nSi te llegó este mensaje, Telegram funciona. Esto NO es una alerta real.")
-    _, sent = await asyncio.gather(sound, text)
+    sent = await notifier.send_test()
     if not notifier.telegram_enabled:
         log.error("Sonó la alarma, pero Telegram no está configurado: cargá el token y el chat_id y guardá.")
         return 1

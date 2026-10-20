@@ -95,15 +95,15 @@ class BrowserSession:
     async def ensure_logged_in(self) -> None:
         await self.page.goto(self._login.url, wait_until="domcontentloaded")
         if await self.is_logged_in():
-            log.info("Sesión activa (cookies reutilizadas)")
+            log.info("Sesión de Soy Socio activa")
             return
 
         if self._can_autofill():
-            log.info("Sesión vencida: completando el formulario de login")
+            log.info("Iniciando sesión en Soy Socio...")
             try:
                 await self._autofill()
                 if await self.is_logged_in(timeout_s=30):
-                    log.info("Login correcto")
+                    log.info("Sesión iniciada correctamente")
                     await self.save_cookies()
                     return
                 log.warning("El login automático no se confirmó (¿captcha o datos incorrectos?)")

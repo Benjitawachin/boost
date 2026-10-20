@@ -49,27 +49,24 @@ python -m playwright install chromium
 
 ## 3. Arrancar el panel
 
-```bash
-streamlit run app.py
-```
+Doble clic en `iniciar` (o `streamlit run app.py`). Se abre en el navegador en `http://localhost:8501`.
 
-Se abre en el navegador en `http://localhost:8501`. Desde ahí configurás todo, iniciás y detenés el monitor y mirás los
-logs en vivo. Las credenciales se guardan solo en el archivo `.env` de esta carpeta, y la configuración en `config.yaml`.
-Los dos archivos están en `.gitignore`.
+**Todo se guarda solo** apenas escribís o elegís algo; no hay botón de guardar. Los datos de tu cuenta quedan en el
+archivo `.env` y el resto en `config.yaml`, solo en tu computadora (los dos están en `.gitignore`).
+
+La tarjeta **"Tu camino a la Bombonera"** muestra qué está listo y qué falta, con una barra de progreso.
 
 ## 4. Configuración paso a paso
 
-### 4.1 Cuenta y Telegram (pestaña "Cuenta y Telegram")
+### 4.1 Pestañas "1 · Tu cuenta" y "2 · Alertas"
 
-- **DNI y contraseña**: opcionales. Si los cargás, el monitor completa el formulario de login cuando la sesión vence.
-  Si no, iniciás sesión a mano en la ventana que se abre.
-- **Telegram** (opcional, recomendado):
-  1. En Telegram, hablale a **@BotFather**, mandá `/newbot` y copiá el **token**.
-  2. Mandale cualquier mensaje a tu bot nuevo (si no, el bot no puede escribirte).
-  3. Hablale a **@userinfobot** para obtener tu **chat_id** (un número).
-  4. Cargá los dos en el panel, guardá y tocá **"Probar alerta"**.
+- **Tu cuenta**: DNI y contraseña de Soy Socio. Son opcionales: si los cargás, la app vuelve a entrar sola cuando la
+  sesión vence; si no, iniciás sesión a mano en la ventana que se abre.
+- **Alertas** (Telegram, recomendado): la pestaña trae las instrucciones paso a paso en "¿Cómo consigo estos datos?".
+  En resumen: creá un bot con **@BotFather** (`/newbot`), copiá el **token**, mandale "hola" a tu bot y pedile tu
+  **chat_id** a **@userinfobot**. Después tocá **Probar alerta**.
 
-### 4.2 Selectores: cómo le decís al monitor qué mirar
+### 4.2 Pestaña "Avanzado": cómo le decís al monitor qué mirar
 
 La web de Soy Socio cambia con el tiempo, así que los "selectores" (cómo identificar cada elemento de la página) los
 configurás vos con las herramientas de desarrollador del navegador. Se hace una sola vez:
@@ -114,14 +111,12 @@ Podés comprobar un selector en la consola de DevTools: `document.querySelectorA
 
 El modo API usa las mismas cookies del navegador, así que respeta tu sesión.
 
-### 4.3 Ubicación
+### 4.3 Pestaña "3 · Sectores"
 
-En **"Sectores que te interesan, en orden de prioridad"** marcá los sectores que querés (Popular, 1ra/2da/3ra bandeja,
-K, Torres, Plateas preferenciales, Palcos) **en el orden en que los preferís**. Si hay lugar en varios a la vez, la
-alerta muestra primero el de mayor prioridad. Si no marcás ninguno, avisa por cualquier sector.
-
-En **"Otros sectores"** podés sumar sectores puntuales del mapa (por ejemplo `2° Sur, LPD, Palcos VIP N`); quedan con
-prioridad después de los marcados.
+En **"¿Dónde querés ir?"** marcá los sectores (Popular, 1ra/2da/3ra bandeja, K, Torres, Plateas preferenciales,
+Palcos) **en el orden en que los preferís**. Si hay lugar en varios a la vez, la alerta muestra primero el de mayor
+prioridad. Si no marcás ninguno, avisa por cualquier sector. En **"Otros sectores del mapa"** podés sumar sectores
+puntuales (por ejemplo `2° Sur, LPD`); quedan con prioridad después de los marcados.
 
 Cada sector se compara por palabra completa, sin importar mayúsculas: "K" coincide con "Sector K" pero no con
 "Kiosco". En `config.yaml` cada entrada admite sinónimos separados por `|` y exclusiones con `!`; por ejemplo
@@ -129,31 +124,31 @@ Cada sector se compara por palabra completa, sin importar mayúsculas: "K" coinc
 
 ## 5. Uso
 
-1. **Guardar configuración**.
-2. **Iniciar sesión y guardar cookies**: se abre el navegador y se loguea (o lo hacés vos, incluido un captcha si
-   aparece). Las cookies quedan guardadas en `browser_profile/`, así que en el momento de alta demanda no hace falta
-   volver a loguearse.
-3. **Probar alerta**: confirmá que suena y que te llega el Telegram.
-4. **Iniciar monitor**. En la barra lateral vas a ver *Monitoreando* y la cantidad de consultas; en **Logs en vivo**, cada
-   consulta.
-5. Cuando haya lugar: suena la alarma, te llega el Telegram y la ventana del navegador queda al frente en la página del
-   partido. **Elegí la ubicación y confirmá vos.** Cuando termines, tocá **Detener monitor**.
+1. **Iniciar sesión en Soy Socio**: se abre el navegador y entra solo (o lo hacés vos, incluido un captcha si aparece).
+   La sesión queda guardada en `browser_profile/`, así que en el momento de alta demanda no hace falta volver a entrar.
+2. **Probar alerta**: confirmá que suena y que te llega el Telegram.
+3. **Empezar a vigilar**. La tarjeta de arriba muestra *Vigilando la venta*, cuántas consultas hizo y a qué hora fue la
+   última; la pestaña **Actividad** muestra cada consulta.
+4. Cuando haya lugar: suena la alarma, te llega el Telegram con los sectores en tu orden de preferencia y la ventana
+   del navegador queda al frente en la página del partido. **Elegí la ubicación y confirmá vos.** Después tocá
+   **Detener**.
 
-> El botón del Telegram abre el partido en el navegador del teléfono, que no tiene tu sesión de la computadora. La forma
-> más rápida es completar la compra en la ventana que ya quedó abierta en la PC.
+> El botón del Telegram abre Soy Socio en el navegador del teléfono, que no tiene la sesión de la computadora. Lo más
+> rápido es completar la compra en la ventana que ya quedó abierta en la PC (o tener la sesión iniciada también en el
+> celular).
 
 ### Usar desde el celular
 
 La computadora hace el trabajo y el celular funciona como control remoto:
 
-1. En la PC, pestaña **Celular**: creá una **contraseña del panel** (mínimo 6 caracteres, distinta de la de Soy
-   Socio) y tocá **Guardar configuración**. Aparece un **código QR**.
+1. En la PC, pestaña **Celular**: creá una **contraseña** (mínimo 6 caracteres, distinta de la de Soy Socio).
+   Aparece un **código QR**.
 2. Con el celular **en el mismo Wi-Fi**, escaneá el QR con la cámara y entrá con esa contraseña.
 3. Para tenerlo como app: en iPhone (Safari) **Compartir → Agregar a inicio**; en Android (Chrome) **⋮ → Agregar a
-   pantalla principal**.
+   pantalla principal**. Queda con el ícono de la estrella azul y oro.
 
 La PC tiene que quedar prendida y con `iniciar` abierto. La primera vez, Windows puede preguntar si permite el acceso
-a Python: elegí **Redes privadas → Permitir acceso**. Sin contraseña del panel, ningún otro dispositivo puede entrar.
+a Python: elegí **Redes privadas → Permitir acceso**. Sin esa contraseña, ningún otro dispositivo puede entrar.
 
 ### Desde la terminal (sin panel)
 

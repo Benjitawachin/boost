@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 import platform
 import shutil
@@ -48,7 +49,7 @@ class Notifier:
         self._chat_id = telegram_chat_id
         self._sound_repeats = sound_repeats
         if not self.telegram_enabled:
-            log.info("Telegram no configurado: solo habrá alerta sonora y logs")
+            log.info("Telegram sin configurar: solo va a sonar la alarma en la computadora")
 
     @property
     def telegram_enabled(self) -> bool:
@@ -57,12 +58,14 @@ class Notifier:
     async def play_sound(self) -> None:
         await asyncio.to_thread(_beep_blocking, self._sound_repeats)
 
-    async def send_text(self, text: str, button_url: str | None = None) -> bool:
+    async def send_text(self, text: str, button_url: str | None = None, as_html: bool = False) -> bool:
         if not self.telegram_enabled:
             return False
         payload: dict = {"chat_id": self._chat_id, "text": text, "disable_web_page_preview": True}
+        if as_html:
+            payload["parse_mode"] = "HTML"
         if button_url and button_url.startswith(("http://", "https://")):
-            payload["reply_markup"] = {"inline_keyboard": [[{"text": "Abrir partido", "url": button_url}]]}
+            payload["reply_markup"] = {"inline_keyboard": [[{"text": "Abrir Soy Socio", "url": button_url}]]}
         url = f"https://api.telegram.org/bot{self._token}/sendMessage"
         async with httpx.AsyncClient(timeout=10) as client:
             for attempt in range(1, 4):
@@ -81,10 +84,19 @@ class Notifier:
         return False
 
     async def send_availability_alert(self, match_url: str, details: list[str]) -> bool:
-        lines = ["¡HAY LUGAR DISPONIBLE!", ""]
-        lines += [f"- {d}" for d in details[:15]] or ["- (sin detalle)"]
-        lines += ["", "La ventana del navegador ya está abierta con tu sesión en la página del partido.", match_url]
-        _, sent = await asyncio.gather(self.play_sound(), self.send_text("\n".join(lines).strip(), button_url=match_url))
+        lines = ["<b>¡HAY LUGAR DISPONIBLE!</b>", "", "<b>Sectores con lugar</b> (en tu orden de preferencia):"]
+        lines += [f"<b>{i}°</b> {html.escape(d)}" for i, d in enumerate(details[:15], 1)] or ["(sin detalle)"]
+        lines += ["", "La página del partido ya está abierta con tu sesión en la computadora. Elegí la ubicación y confirmá."]
+        text = "\n".join(lines)
+        _, sent = await asyncio.gather(self.play_sound(), self.send_text(text, button_url=match_url, as_html=True))
+        return sent
+
+    async def send_test(self) -> bool:
+        text = (
+            "<b>PRUEBA</b> · Monitor Xeneize\n\n"
+            "Si te llegó este mensaje, las alertas funcionan.\nEsto <b>no</b> es una alerta real."
+        )
+        _, sent = await asyncio.gather(self.play_sound(), self.send_text(text, as_html=True))
         return sent
 
 

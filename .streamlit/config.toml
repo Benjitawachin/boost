@@ -6,5 +6,11 @@ secondaryBackgroundColor = "#0E3270"
 textColor = "#FFFFFF"
 font = "sans serif"
 
+[server]
+enableStaticServing = true
+
 [browser]
 gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
