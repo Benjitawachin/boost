@@ -84,8 +84,12 @@ class Notifier:
         return False
 
     async def send_availability_alert(self, match_url: str, details: list[str]) -> bool:
-        lines = ["<b>¡HAY LUGAR DISPONIBLE!</b>", "", "<b>Sectores con lugar</b> (en tu orden de preferencia):"]
-        lines += [f"<b>{i}°</b> {html.escape(d)}" for i, d in enumerate(details[:15], 1)] or ["(sin detalle)"]
+        lines = ["<b>¡HAY LUGAR DISPONIBLE!</b>", ""]
+        if len(details) > 1:
+            lines.append("<b>Sectores con lugar</b> (en tu orden de preferencia):")
+            lines += [f"<b>{i}°</b> {html.escape(d)}" for i, d in enumerate(details[:15], 1)]
+        else:
+            lines.append(html.escape(details[0]) if details else "(sin detalle)")
         lines += ["", "La página del partido ya está abierta con tu sesión en la computadora. Elegí la ubicación y confirmá."]
         text = "\n".join(lines)
         _, sent = await asyncio.gather(self.play_sound(), self.send_text(text, button_url=match_url, as_html=True))

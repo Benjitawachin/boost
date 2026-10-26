@@ -40,6 +40,7 @@ class CheckConfig:
     ready_selector: str = ""
     available_selector: str = ""
     session_check_selector: str = ""
+    unavailable_text: list[str] = field(default_factory=list)
     api_url: str = ""
     items_path: str = ""
     count_field: str = ""
@@ -83,6 +84,11 @@ def _require(section: dict, key: str, section_name: str) -> str:
     return value
 
 
+def _optional(section: dict, key: str) -> str:
+    value = str(section.get(key) or "").strip()
+    return "" if value.upper().startswith("CAMBIAR") else value
+
+
 def load_settings(config_path: Path, env_path: Path | None = None) -> Settings:
     load_dotenv(env_path or config_path.parent / ".env")
 
@@ -115,9 +121,10 @@ def load_settings(config_path: Path, env_path: Path | None = None) -> Settings:
     check = CheckConfig(
         mode=mode,
         match_url=_require(ck, "match_url", "check"),
-        ready_selector=str(ck.get("ready_selector") or ""),
-        available_selector=str(ck.get("available_selector") or ""),
-        session_check_selector=str(ck.get("session_check_selector") or ""),
+        ready_selector=_optional(ck, "ready_selector"),
+        available_selector=_optional(ck, "available_selector"),
+        session_check_selector=_optional(ck, "session_check_selector"),
+        unavailable_text=[t.strip() for t in _optional(ck, "unavailable_text").split("|") if t.strip()],
         api_url=str(ck.get("api_url") or ""),
         items_path=str(ck.get("items_path") or ""),
         count_field=str(ck.get("count_field") or ""),
@@ -127,7 +134,10 @@ def load_settings(config_path: Path, env_path: Path | None = None) -> Settings:
         block_text=[str(t) for t in ck.get("block_text") or []],
     )
     if mode == "page":
-        _require(ck, "available_selector", "check")
+        if not (check.available_selector or check.unavailable_text):
+            raise ConfigError(
+                "Falta configurar 'check.available_selector' o 'check.unavailable_text' en config.yaml"
+            )
     else:
         for key in ("api_url", "items_path", "count_field"):
             _require(ck, key, "check")

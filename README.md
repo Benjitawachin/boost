@@ -68,6 +68,13 @@ La tarjeta **"Tu camino a la Bombonera"** muestra qué está listo y qué falta,
 
 ### 4.2 Pestaña "Avanzado": cómo le decís al monitor qué mirar
 
+**Para Boca Socios no hace falta tocar nada de esto:** tocá **"Configurar para Boca Socios"** (aparece arriba
+mientras falte configuración, y la instalación nueva ya viene así). La app vigila la página **Partidos** y te avisa
+en cuanto deja de decir *"Aún no hay partidos habilitados"*, que es el momento en que se libera la venta. Para no dar
+falsas alarmas, espera a que la página termine de cargar antes de decidir.
+
+Lo que sigue sirve si la web cambia o para vigilar otra página.
+
 La web de Soy Socio cambia con el tiempo, así que los "selectores" (cómo identificar cada elemento de la página) los
 configurás vos con las herramientas de desarrollador del navegador. Se hace una sola vez:
 

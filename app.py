@@ -257,9 +257,30 @@ def missing_fields(cfg: dict) -> list[str]:
     if check.get("mode") == "api":
         if not (check.get("api_url") and check.get("items_path") and check.get("count_field")):
             missing.append("los datos del modo API (pestaña Avanzado)")
-    elif not placeholder_free(check.get("available_selector")):
+    elif not (placeholder_free(check.get("available_selector")) or str(check.get("unavailable_text") or "").strip()):
         missing.append("cómo reconocer un lugar disponible (pestaña Avanzado)")
     return missing
+
+
+BOCA_SOCIOS = {
+    "login": {
+        "url": "https://bocasocios.bocajuniors.com.ar/home",
+        "logged_in_selector": "text=Cerrar sesión",
+    },
+    "check": {
+        "mode": "page",
+        "match_url": "https://bocasocios.bocajuniors.com.ar/matches",
+        "ready_selector": "text=Próximos partidos",
+        "session_check_selector": "text=Cerrar sesión",
+        "unavailable_text": "Aún no hay partidos habilitados|Necesitás tener tu carnet físico",
+        "available_selector": "",
+    },
+}
+
+
+def apply_boca_socios(cfg: dict) -> None:
+    for section, values in BOCA_SOCIOS.items():
+        cfg.setdefault(section, {}).update(values)
 
 
 def lan_url() -> str | None:
@@ -397,6 +418,14 @@ with col3:
 with st.container():
     if missing and not proc:
         st.info("Para empezar a vigilar falta configurar " + " y ".join(missing) + ".")
+        if st.button("Configurar para Boca Socios", type="primary", use_container_width=True,
+                     help="Completa solo la dirección de Partidos y cómo reconocer cuándo se habilita la venta."):
+            apply_boca_socios(cfg)
+            CONFIG.write_text(dump_config(cfg), encoding="utf-8")
+            st.session_state["boca_configurado"] = True
+            st.rerun()
+    elif st.session_state.get("boca_configurado") and not proc:
+        st.success("Listo: configurado para Boca Socios. Ya podés tocar «Empezar a vigilar».")
     if login_clicked:
         spawn("--login-only")
         st.success("Se abrió el navegador en la computadora. Si no entra solo, iniciá sesión en esa ventana.")
@@ -533,8 +562,14 @@ with tab_avanzado:
         )
         check["mode"] = "api" if mode_label.startswith("Leyendo la API") else "page"
         if check["mode"] == "page":
+            check["unavailable_text"] = st.text_input(
+                "Texto que se ve cuando todavía no hay venta",
+                str(check.get("unavailable_text") or ""),
+                help="Mientras la página muestre este texto, no hay venta. Cuando desaparece, te avisamos. "
+                "Podés poner varios separados por |",
+            )
             check["available_selector"] = st.text_input(
-                "Selector de un sector disponible", placeholder_free(check.get("available_selector"))
+                "Selector de un sector disponible (opcional)", placeholder_free(check.get("available_selector"))
             )
             check["ready_selector"] = st.text_input("Selector de página cargada (opcional)", check.get("ready_selector") or "")
             check["session_check_selector"] = st.text_input(
@@ -573,7 +608,10 @@ if cfg_text != saved_cfg_text or not config_existed or any(env.get(k, "") != new
     CONFIG.write_text(cfg_text, encoding="utf-8")
     save_env(new_env)
     if config_existed:
-        st.session_state["toast"] = "Cambios guardados" + (". Detené y volvé a empezar para aplicarlos." if proc else "")
+        # Si este mismo ciclo mostró un aviso, se vuelve a mostrar: el rerun lo borraría.
+        st.session_state["toast"] = toast or (
+            "Cambios guardados" + (". Detené y volvé a empezar para aplicarlos." if proc else "")
+        )
     st.rerun()
 
 steps = [
@@ -585,7 +623,7 @@ steps = [
      ("Listo: " + ", ".join(chosen + extra)) if check["include_text"] else "Elegilos en la pestaña 3 · Sectores."),
     (session_saved, "Sesión iniciada en Soy Socio",
      "Listo: la sesión queda guardada." if session_saved else "Tocá «Iniciar sesión en Soy Socio», arriba."),
-    (not missing, "Lectura de la página de compra",
-     "Listo." if not missing else "Se configura una sola vez en Avanzado, cuando la venta esté visible en tu cuenta."),
+    (not missing, "Detección de la venta",
+     "Listo: te avisamos apenas se habilite un partido." if not missing else "Tocá «Configurar para Boca Socios», arriba."),
 ]
 journey_box.markdown(journey_html(steps), unsafe_allow_html=True)

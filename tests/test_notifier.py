@@ -22,3 +22,6 @@ def test_alert_is_valid_html_in_priority_order(monkeypatch):
     assert ok and sent["as_html"] and sent["button_url"] == "https://example.test/partido"
     assert "<b>1°</b> Popular &lt;Sur&gt;" in sent["text"]
     assert sent["text"].index("Popular") < sent["text"].index("Platea &amp; Baja")
+
+    asyncio.run(notifier.send_availability_alert("https://example.test/partido", ["Se habilitó la venta"]))
+    assert "Se habilitó la venta" in sent["text"] and "1°" not in sent["text"]

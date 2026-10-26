@@ -1,6 +1,6 @@
 # Copiá este archivo a config.yaml y ajustalo.
-# Las URLs y los selectores CSS dependen de cómo esté armada la web de Soy Socio en este momento:
-# verificalos con las DevTools del navegador (F12) antes de usar el monitor (ver README).
+# Viene configurado para Boca Socios (bocasocios.bocajuniors.com.ar). Si la web cambia, ajustá los textos y
+# selectores con las DevTools del navegador (F12); ver la sección 4.2 del README.
 
 browser:
   profile_dir: browser_profile   # acá se guardan las cookies de sesión entre ejecuciones
@@ -22,9 +22,11 @@ check:
   match_url: https://bocasocios.bocajuniors.com.ar/matches
 
   # --- modo page ---
-  ready_selector: ""             # opcional: elemento que indica que la página terminó de cargar
-  available_selector: "CAMBIAR: selector de un sector/ubicación con lugar disponible"
-  session_check_selector: ""     # opcional: si no aparece en la página del partido, se re-loguea
+  ready_selector: "text=Próximos partidos"     # elemento que indica que la página terminó de cargar
+  session_check_selector: "text=Cerrar sesión" # si no aparece, la sesión se venció y se vuelve a entrar
+  # Mientras la página muestre alguno de estos textos (separados por |) no hay venta; cuando desaparecen, avisa.
+  unavailable_text: "Aún no hay partidos habilitados|Necesitás tener tu carnet físico"
+  available_selector: ""         # opcional: selector de un sector con lugar, para avisar por sector
 
   # --- modo api (copiá la URL del pedido XHR que ves en la pestaña Network) ---
   api_url: ""

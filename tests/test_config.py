@@ -42,6 +42,22 @@ def test_api_mode_requires_api_fields(tmp_path):
         load_settings(write(tmp_path, data))
 
 
+def test_no_sale_text_alone_is_enough_and_placeholders_are_ignored(tmp_path):
+    check = {
+        "mode": "page", "match_url": "https://example.test/partidos",
+        "available_selector": "CAMBIAR: selector", "unavailable_text": "Aún no hay partidos | Sin venta",
+    }
+    settings = load_settings(write(tmp_path, {**BASE, "check": check}))
+    assert settings.check.available_selector == ""
+    assert settings.check.unavailable_text == ["Aún no hay partidos", "Sin venta"]
+
+
+def test_page_mode_needs_some_detection(tmp_path):
+    check = {"mode": "page", "match_url": "https://example.test/partidos"}
+    with pytest.raises(ConfigError, match="unavailable_text"):
+        load_settings(write(tmp_path, {**BASE, "check": check}))
+
+
 def test_missing_file(tmp_path):
     with pytest.raises(ConfigError):
         load_settings(tmp_path / "config.yaml")

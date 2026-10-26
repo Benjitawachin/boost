@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from dataclasses import dataclass, field
@@ -13,6 +14,9 @@ from .config import CheckConfig
 log = logging.getLogger(__name__)
 
 Status = Literal["available", "unavailable", "logged_out", "blocked"]
+
+NO_SALE_SETTLE_MS = 8000
+NO_SALE_GRACE_MS = 2500
 
 _TOKEN_RE = re.compile(r"([^\[\]]*)((?:\[(?:\*|\d+)\])*)")
 _INDEX_RE = re.compile(r"\[(\*|\d+)\]")
@@ -124,7 +128,14 @@ class AvailabilityChecker:
                 return CheckResult("blocked" if response.status == 403 else "logged_out")
 
         if self._cfg.ready_selector:
-            await page.locator(self._cfg.ready_selector).first.wait_for(state="attached", timeout=self._timeout_ms)
+            try:
+                await page.locator(self._cfg.ready_selector).first.wait_for(state="attached", timeout=self._timeout_ms)
+            except PlaywrightTimeoutError:
+                if self._looks_blocked(await page.inner_text("body")):
+                    return CheckResult("blocked")
+                if await self._session_missing(page):
+                    return CheckResult("logged_out")
+                raise
         else:
             try:
                 await page.wait_for_load_state("networkidle", timeout=self._timeout_ms)
@@ -134,12 +145,51 @@ class AvailabilityChecker:
         if self._looks_blocked(await page.inner_text("body")):
             return CheckResult("blocked")
 
-        if self._cfg.session_check_selector and await page.locator(self._cfg.session_check_selector).count() == 0:
+        if await self._session_missing(page):
             return CheckResult("logged_out")
+
+        if self._cfg.unavailable_text:
+            if await self._shows_no_sale(page):
+                return CheckResult("unavailable")
+            if not self._cfg.available_selector:
+                return CheckResult(
+                    "available",
+                    [f"Se habilitó la venta: la página ya no dice «{self._cfg.unavailable_text[0]}»"],
+                )
 
         texts = await page.locator(self._cfg.available_selector).all_inner_texts()
         found = self._rank([" ".join(t.split()) for t in texts])
         return CheckResult("available" if found else "unavailable", found)
+
+    async def _session_missing(self, page) -> bool:
+        selector = self._cfg.session_check_selector
+        return bool(selector) and await page.locator(selector).count() == 0
+
+    async def _shows_no_sale(self, page) -> bool:
+        # Los datos pueden llegar después del encabezado: el cartel cuenta como ausente recién cuando la página
+        # terminó de cargar (red inactiva) o pasó NO_SALE_SETTLE_MS sin que aparezca.
+        marker = page.get_by_text(self._cfg.unavailable_text[0])
+        for text in self._cfg.unavailable_text[1:]:
+            marker = marker.or_(page.get_by_text(text))
+        marker = marker.first
+        appeared = asyncio.create_task(marker.wait_for(state="visible", timeout=NO_SALE_SETTLE_MS))
+        settled = asyncio.create_task(page.wait_for_load_state("networkidle", timeout=NO_SALE_SETTLE_MS))
+        try:
+            done, _ = await asyncio.wait({appeared, settled}, return_when=asyncio.FIRST_COMPLETED)
+            if appeared in done and appeared.exception() is None:
+                return True
+            if settled in done and settled.exception() is None:
+                try:
+                    await marker.wait_for(state="visible", timeout=NO_SALE_GRACE_MS)
+                    return True
+                except PlaywrightTimeoutError:
+                    return False
+            await asyncio.wait({appeared})
+            return appeared.exception() is None
+        finally:
+            for task in (appeared, settled):
+                task.cancel()
+            await asyncio.gather(appeared, settled, return_exceptions=True)
 
     async def _check_api(self) -> CheckResult:
         response = await self._session.context.request.get(
